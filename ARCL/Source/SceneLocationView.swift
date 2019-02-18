@@ -288,6 +288,11 @@ public class SceneLocationView: ARSCNView, ARSCNViewDelegate {
         sceneNode.addChildNode(locationNode)
     }
 
+    public func testPrint() -> String{
+        print("[TESTING PRINT]")
+        return ("done")
+    }
+    
     ///location not being nil, and locationConfirmed being true are required
     ///Upon being added, a node's position will be modified and should not be changed externally.
     ///location will not be modified, but taken as accurate.
