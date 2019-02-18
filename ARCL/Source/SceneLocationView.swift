@@ -154,7 +154,6 @@ public class SceneLocationView: ARSCNView, ARSCNViewDelegate {
     @objc private func updateLocationData() {
         removeOldLocationEstimates()
         confirmLocationOfDistantLocationNodes()
-        updatePositionAndScaleOfLocationNodes()
     }
 
     // MARK: - True North
@@ -292,12 +291,13 @@ public class SceneLocationView: ARSCNView, ARSCNViewDelegate {
     ///location not being nil, and locationConfirmed being true are required
     ///Upon being added, a node's position will be modified and should not be changed externally.
     ///location will not be modified, but taken as accurate.
-    public func addLocationNodeWithConfirmedLocation(locationNode: LocationNode) {
+    public func addLocationNodeWithConfirmedLocation(locationNode: LocationNode, userLocation: CLLocation) {
         if locationNode.location == nil || locationNode.locationConfirmed == false {
+            print("[RETURNNING FROM ADDING LOCATIONNODE]")
             return
         }
-
-        updatePositionAndScaleOfLocationNode(locationNode: locationNode, initialSetup: true, animated: false)
+        print("[ADDING LOCATIONNODE]")
+        updatePositionAndScaleOfLocationNode(locationNode: locationNode, userLocation: userLocation, initialSetup: true, animated: false)
 
         locationNodes.append(locationNode)
         sceneNode?.addChildNode(locationNode)
@@ -379,92 +379,27 @@ public class SceneLocationView: ARSCNView, ARSCNViewDelegate {
         locationDelegate?.sceneLocationViewDidConfirmLocationOfNode(sceneLocationView: self, node: locationNode)
     }
 
-    func updatePositionAndScaleOfLocationNodes() {
-        for locationNode in locationNodes where locationNode.continuallyUpdatePositionAndScale {
-            updatePositionAndScaleOfLocationNode(locationNode: locationNode, animated: true)
-        }
-    }
-
-    public func updatePositionAndScaleOfLocationNode(locationNode: LocationNode, initialSetup: Bool = false, animated: Bool = false, duration: TimeInterval = 0.1) {
-        guard let currentPosition = currentScenePosition(),
-            let currentLocation = currentLocation() else {
-            return
-        }
-
+    public func updatePositionAndScaleOfLocationNode(locationNode: LocationNode, userLocation: CLLocation, initialSetup: Bool = false, animated: Bool = false, duration: TimeInterval = 0.1) {
+        print("[UPDATEPOSANDSCALEAASDASDASDASDSAD]")
+        guard let currentPosition = currentScenePosition() else { return }
+        let currentLocation = userLocation
+        
         SCNTransaction.begin()
-
+        
         SCNTransaction.animationDuration = animated ? duration : 0
-
+        
         let locationNodeLocation = locationOfLocationNode(locationNode)
-
-        // Position is set to a position coordinated via the current position
+        
         let locationTranslation = currentLocation.translation(toLocation: locationNodeLocation)
-        let adjustedDistance: CLLocationDistance
-        let distance = locationNodeLocation.distance(from: currentLocation)
-
-        if locationNode.locationConfirmed &&
-            (distance > 100 || locationNode.continuallyAdjustNodePositionWhenWithinRange || initialSetup) {
-            if distance > 100 {
-                //If the item is too far away, bring it closer and scale it down
-                let scale = 100 / Float(distance)
-
-                adjustedDistance = distance * Double(scale)
-
-                let adjustedTranslation = SCNVector3(
-                    x: Float(locationTranslation.longitudeTranslation) * scale,
-                    y: Float(locationTranslation.altitudeTranslation) * scale,
-                    z: Float(locationTranslation.latitudeTranslation) * scale)
-
-                let position = SCNVector3(
-                    x: currentPosition.x + adjustedTranslation.x,
-                    y: currentPosition.y + adjustedTranslation.y,
-                    z: currentPosition.z - adjustedTranslation.z)
-
-                locationNode.position = position
-
-                locationNode.scale = SCNVector3(x: scale, y: scale, z: scale)
-            } else {
-                adjustedDistance = distance
-                let position = SCNVector3(
-                    x: currentPosition.x + Float(locationTranslation.longitudeTranslation),
-                    y: currentPosition.y + Float(locationTranslation.altitudeTranslation),
-                    z: currentPosition.z - Float(locationTranslation.latitudeTranslation))
-
-                locationNode.position = position
-                locationNode.scale = SCNVector3(x: 1, y: 1, z: 1)
-            }
-        } else {
-            //Calculates distance based on the distance within the scene, as the location isn't yet confirmed
-            adjustedDistance = Double(currentPosition.distance(to: locationNode.position))
-
-            locationNode.scale = SCNVector3(x: 1, y: 1, z: 1)
+        
+        if locationNode.locationConfirmed && initialSetup {
+            let position = SCNVector3(
+                x: currentPosition.x + Float(locationTranslation.longitudeTranslation),
+                y: currentPosition.y + Float(locationTranslation.altitudeTranslation),
+                z: currentPosition.z - Float(locationTranslation.latitudeTranslation))
+            locationNode.position = position
+            print("[UPDATE] Updated location node with position \(position)")
         }
-
-        if let annotationNode = locationNode as? LocationAnnotationNode {
-            //The scale of a node with a billboard constraint applied is ignored
-            //The annotation subnode itself, as a subnode, has the scale applied to it
-            let appliedScale = locationNode.scale
-            locationNode.scale = SCNVector3(x: 1, y: 1, z: 1)
-
-            var scale: Float
-
-            if annotationNode.scaleRelativeToDistance {
-                scale = appliedScale.y
-                annotationNode.annotationNode.scale = appliedScale
-            } else {
-                //Scale it to be an appropriate size so that it can be seen
-                scale = Float(adjustedDistance) * 0.181
-
-                if distance > 3000 {
-                    scale = scale * 0.75
-                }
-
-                annotationNode.annotationNode.scale = SCNVector3(x: scale, y: scale, z: scale)
-            }
-
-            annotationNode.pivot = SCNMatrix4MakeTranslation(0, -1.1 * scale, 0)
-        }
-
         SCNTransaction.commit()
 
         locationDelegate?.sceneLocationViewDidUpdateLocationAndScaleOfLocationNode(sceneLocationView: self, locationNode: locationNode)
